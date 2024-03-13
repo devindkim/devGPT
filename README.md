@@ -11,7 +11,7 @@ $ pip install -r requirements.txt
 By default, trains character-level GPT on the script of Avatar: The Last Airbender.
 
 ```
-$ python data/shakespeare/prepare.py
+$ python data/avatar/prepare.py
 ```
 
 This creates a `train.bin` and `val.bin` in that data directory.
