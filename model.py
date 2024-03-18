@@ -132,11 +132,11 @@ class Block(nn.Module):
 class GPTConfig:
     """Configuration for the GPT model."""
     V: int = 128 # Vocabulary size
-    H: int = 4 # Number of attention heads
-    D: int = 64 # Model dimension
-    L: int = 64 # Maximum sequence length
+    H: int = 16 # Number of attention heads
+    D: int = 128 # Model dimension
+    L: int = 256 # Maximum sequence length
     num_layers: int = 12 # Number of Transformer blocks
-    dropout: float = 0.0 # Dropout rate
+    dropout: float = 0.1 # Dropout rate
 
 class GPT(nn.Module):
 
@@ -164,14 +164,6 @@ class GPT(nn.Module):
             if name.endswith('c_proj.weight'):
                 torch.nn.init.normal_(param, mean=0.0, std=0.02/math.sqrt(2*config.num_layers))
 
-        print("Total Params: %.2fM" % (self.get_num_params()/1e6,))
-
-    def get_num_params(self, non_embedding=True):
-        n_params = sum(p.numel() for p in self.parameters())
-        if non_embedding:
-            n_params -= self.transformer.wpe.weight.numel()
-        return n_params
-
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
@@ -197,7 +189,7 @@ class GPT(nn.Module):
         """
         B, L = input_BL.size()
         if L > self.config.L:
-            raise ValueError(f"Cannot forward sequence of length {L}, block size is only {self.L}")
+            raise ValueError(f"Cannot forward sequence of length {L}, block size is only {self.config.L}")
         pos_L = torch.arange(0, L, dtype=torch.long, device=input_BL.device)
 
         tok_emb_BLD = self.transformer.wte(input_BL)
@@ -211,39 +203,6 @@ class GPT(nn.Module):
         loss = F.cross_entropy(logits_BLV.view(-1, logits_BLV.size(-1)), targets_BL.view(-1), ignore_index=-1) if targets_BL is not None else None
 
         return logits_BLV, loss
-
-
-    def configure_optimizer(self, weight_decay, learning_rate, betas):
-        # Collect params that require gradients, otherwise they cannot be optimized.
-        params = [p for _, p in self.named_parameters() if p.requires_grad]
-
-        # All weight tensors will be optimized together with decay, and all else will be optimized separately.
-        decay_params = [p for p in params if p.dim() >= 2] # Weight tensors
-        nodecay_params = [p for p in params if p.dim() < 2] # Bias, LayerNorm, etc.
-        optim_groups = [
-            {'params': decay_params, 'weight_decay': weight_decay},
-            {'params': nodecay_params, 'weight_decay': 0.0}
-        ]
-        num_decay_params = sum(p.numel() for p in decay_params)
-        num_nodecay_params = sum(p.numel() for p in nodecay_params)
-        print(f"Decaying Tensors:\t{len(decay_params)}\nDecaying Params:\t{num_decay_params:,}")
-        print(f"Non-Decaying Tensors:\t{len(nodecay_params)}\nNon-Decaying Params:\t{num_nodecay_params:,}")
-
-        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas)
-        return optimizer
-
-    def estimate_mfu(self, fwdbwd_per_iter, dt):
-        """ Estimate Model Flops Utilization (MFU) in units of Apple M2 Chip float16 peak FLOPS """
-        N = self.get_num_params()
-        num_layers, H, K, L = self.config.num_layers, self.config.H, self.config.D//self.config.H, self.config.L
-        flops_per_token = 6*N + 12*num_layers*H*K*L # PaLM paper Appendix B https://arxiv.org/abs/2204.02311
-        flops_per_fwdbwd = flops_per_token * L
-        flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
-
-        flops_achieved = flops_per_iter * (1.0/dt) # Per second
-        flops_promised = 3.6e12 # Apple M2 Chip float16 peak flops is 3.6 TFLOPS
-        mfu = flops_achieved / flops_promised
-        return mfu
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):

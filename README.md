@@ -20,3 +20,10 @@ This creates a `train.bin` and `val.bin` in that data directory.
 $ python train.py
 $ python sample.py
 ```
+
+train.py was written for educational purposes, but lightning.py abstracts away a lot of the manual training code
+
+```
+$ python lightning.py
+$ python sample.py
+```

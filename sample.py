@@ -13,7 +13,7 @@ init_from = 'resume' # either 'resume' (from an out_dir) or a gpt2 variant (e.g.
 out_dir = 'out' # ignored if init_from is not 'resume'
 start = "\n" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 num_samples = 5 # number of samples to draw
-max_new_tokens = 1000 # number of tokens generated in each sample
+max_new_tokens = 512 # number of tokens generated in each sample
 temperature = 0.8 # 1.0 = no change, < 1.0 = less random, > 1.0 = more random, in predictions
 top_k = 20 # retain only the top_k most likely tokens, clamp others to have 0 probability
 seed = 31297
@@ -26,7 +26,7 @@ device_type = 'cpu' # for later use in torch.autocast
 # model
 if init_from == 'resume':
     # init from a model saved in a specific directory
-    ckpt_path = os.path.join(out_dir, 'ckpt.pt')
+    ckpt_path = os.path.join(out_dir, 'ckpt.ckpt')
     checkpoint = torch.load(ckpt_path, map_location=device)
     gptconf = GPTConfig(**checkpoint['model_args'])
     model = GPT(gptconf)
