@@ -3,14 +3,15 @@ Sample from a trained model
 """
 import os
 import pickle
+
 import torch
-import tiktoken
+import pytorch_lightning as L
 
 from model import GPTConfig, GPT
+from train import GPTLightningModule
 
 # -----------------------------------------------------------------------------
-init_from = 'resume' # either 'resume' (from an out_dir) or a gpt2 variant (e.g. 'gpt2-xl')
-out_dir = 'out' # ignored if init_from is not 'resume'
+out_dir = 'out'
 start = "\n" # or "<|endoftext|>" or etc. Can also specify a file, use as: "FILE:prompt.txt"
 num_samples = 5 # number of samples to draw
 max_new_tokens = 512 # number of tokens generated in each sample
@@ -20,29 +21,17 @@ seed = 31297
 device = 'cpu' # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1', etc.
 # -----------------------------------------------------------------------------
 torch.manual_seed(seed)
-torch.cuda.manual_seed(seed)
-device_type = 'cpu' # for later use in torch.autocast
 
-# model
-if init_from == 'resume':
-    # init from a model saved in a specific directory
-    ckpt_path = os.path.join(out_dir, 'ckpt.ckpt')
-    checkpoint = torch.load(ckpt_path, map_location=device)
-    gptconf = GPTConfig(**checkpoint['model_args'])
-    model = GPT(gptconf)
-    state_dict = checkpoint['model']
-    model.load_state_dict(state_dict)
-
+ckpt_path = os.path.join(out_dir, 'ckpt.ckpt')
+model = GPTLightningModule.load_from_checkpoint(ckpt_path)
+config = model.hparams
+model = model.gpt # Directly use the GPT model inside the LightningModule
 model.eval()
-model.to(device)
-if compile:
-    model = torch.compile(model) # requires PyTorch 2.0 (optional)
 
-# look for the meta pickle in case it is available in the dataset folder
 load_meta = False
-if init_from == 'resume' and 'config' in checkpoint and 'dataset' in checkpoint['config']: # older checkpoints might not have these...
-    meta_path = os.path.join('data', checkpoint['config']['dataset'], 'meta.pkl')
-    load_meta = os.path.exists(meta_path)
+meta_path = os.path.join('data', config['dataset'], 'meta.pkl')
+load_meta = os.path.exists(meta_path)
+
 if load_meta:
     print(f"Loading meta from {meta_path}...")
     with open(meta_path, 'rb') as f:
